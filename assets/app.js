@@ -4,8 +4,8 @@
   const $ = (sel) => document.querySelector(sel);
   const $$ = (sel) => [...document.querySelectorAll(sel)];
 
-  const allToolchains = ["node", "python", "go", "rust", "ruby", "java"];
-  const allExtras = ["gh", "uv", "pnpm", "yarn", "bun", "browser"];
+  const allToolchains = ["node", "python", "go", "rust", "ruby", "java", "deno", "elixir", "zig", "dotnet", "php"];
+  const allExtras = ["gh", "uv", "pnpm", "yarn", "bun", "browser", "sqlite", "postgres", "redis", "docker"];
 
   function getSelected(group) {
     return $$(`.grid[data-group="${group}"] input:checked`).map(

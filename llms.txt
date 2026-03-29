@@ -41,11 +41,11 @@ uvx ccweb doctor
 
 ## Toolchains
 
-node, python, go, rust, ruby, java
+node, python, go, rust, ruby, java, deno, elixir, zig, dotnet, php
 
 ## Extras
 
-gh (GitHub CLI), uv (Python package manager), pnpm, yarn, bun, browser (Playwright Chromium)
+gh (GitHub CLI), uv (Python package manager), pnpm, yarn, bun, browser (Playwright Chromium), sqlite, postgres (client), redis (CLI), docker (CLI)
 
 ## Generated Files
 

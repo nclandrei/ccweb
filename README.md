@@ -35,11 +35,11 @@ uvx ccweb init --scripts-dir ci/scripts       # Custom scripts directory
 
 ### Toolchains
 
-`node`, `python`, `go`, `rust`, `ruby`, `java` — default: all
+`node`, `python`, `go`, `rust`, `ruby`, `java`, `deno`, `elixir`, `zig`, `dotnet`, `php` — default: all
 
 ### Extras
 
-`gh`, `uv`, `pnpm`, `yarn`, `bun`, `browser` — default: all
+`gh`, `uv`, `pnpm`, `yarn`, `bun`, `browser`, `sqlite`, `postgres`, `redis`, `docker` — default: all
 
 ## How it works
 

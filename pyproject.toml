@@ -20,6 +20,9 @@ classifiers = [
     "Topic :: Software Development :: Build Tools",
 ]
 
+[tool.hatch.build.targets.wheel]
+packages = ["src/ccw"]
+
 [project.scripts]
 ccweb = "ccw.cli:main"
 

@@ -35,7 +35,7 @@ echo "Installing system packages..."
 apt-get update -qq
 
 apt-get install -y -qq --no-install-recommends \\
-  jq curl wget httpie sqlite3 build-essential \\
+  jq curl wget httpie build-essential \\
   tree htop ripgrep fd-find bat \\
   2>/dev/null || true
 
@@ -141,6 +141,138 @@ fi
 """
 
 
+def setup_deno() -> str:
+    return """\
+# ── Deno ─────────────────────────────────────────────────────────────────────
+if ! _installed deno; then
+  t=$(date +%s)
+  echo "Installing Deno..."
+  curl -fsSL https://deno.land/install.sh | sh 2>/dev/null || true
+  [ -f /root/.deno/bin/deno ] && ln -sf /root/.deno/bin/deno /usr/local/bin/deno
+  _timer "Deno" "$t"
+fi
+"""
+
+
+def setup_elixir() -> str:
+    return """\
+# ── Elixir + Erlang ─────────────────────────────────────────────────────────
+if ! _installed elixir; then
+  t=$(date +%s)
+  echo "Installing Erlang + Elixir..."
+  apt-get update -qq
+  apt-get install -y -qq --no-install-recommends erlang elixir 2>/dev/null || true
+  _installed mix && mix local.hex --force 2>/dev/null || true
+  _installed mix && mix local.rebar --force 2>/dev/null || true
+  _timer "Elixir" "$t"
+fi
+"""
+
+
+def setup_zig() -> str:
+    return """\
+# ── Zig ──────────────────────────────────────────────────────────────────────
+if ! _installed zig; then
+  t=$(date +%s)
+  ZIG_VERSION="0.14.1"
+  echo "Installing Zig ${ZIG_VERSION}..."
+  curl -fsSL "https://ziglang.org/download/${ZIG_VERSION}/zig-linux-x86_64-${ZIG_VERSION}.tar.xz" \\
+    | tar -C /usr/local -xJf -
+  ln -sf /usr/local/zig-linux-x86_64-${ZIG_VERSION}/zig /usr/local/bin/zig
+  _timer "Zig ${ZIG_VERSION}" "$t"
+fi
+"""
+
+
+def setup_dotnet() -> str:
+    return """\
+# ── .NET ─────────────────────────────────────────────────────────────────────
+if ! _installed dotnet; then
+  t=$(date +%s)
+  echo "Installing .NET SDK..."
+  apt-get update -qq
+  apt-get install -y -qq --no-install-recommends dotnet-sdk-8.0 2>/dev/null \\
+    || {
+      curl -fsSL https://dot.net/v1/dotnet-install.sh | bash -s -- --channel 8.0 2>/dev/null || true
+      [ -f /root/.dotnet/dotnet ] && ln -sf /root/.dotnet/dotnet /usr/local/bin/dotnet
+    }
+  _timer ".NET" "$t"
+fi
+"""
+
+
+def setup_php() -> str:
+    return """\
+# ── PHP ──────────────────────────────────────────────────────────────────────
+if ! _installed php; then
+  t=$(date +%s)
+  echo "Installing PHP..."
+  apt-get update -qq
+  apt-get install -y -qq --no-install-recommends \\
+    php-cli php-mbstring php-xml php-curl php-zip unzip \\
+    2>/dev/null || true
+  # Composer
+  if ! _installed composer; then
+    curl -fsSL https://getcomposer.org/installer | php -- --install-dir=/usr/local/bin --filename=composer 2>/dev/null || true
+  fi
+  _timer "PHP" "$t"
+fi
+"""
+
+
+def setup_sqlite() -> str:
+    return """\
+# ── SQLite ───────────────────────────────────────────────────────────────────
+if ! _installed sqlite3; then
+  t=$(date +%s)
+  apt-get update -qq
+  apt-get install -y -qq --no-install-recommends sqlite3 libsqlite3-dev 2>/dev/null || true
+  _timer "SQLite" "$t"
+fi
+"""
+
+
+def setup_postgres() -> str:
+    return """\
+# ── PostgreSQL client ────────────────────────────────────────────────────────
+if ! _installed psql; then
+  t=$(date +%s)
+  echo "Installing PostgreSQL client..."
+  apt-get update -qq
+  apt-get install -y -qq --no-install-recommends postgresql-client 2>/dev/null || true
+  _timer "PostgreSQL client" "$t"
+fi
+"""
+
+
+def setup_redis() -> str:
+    return """\
+# ── Redis CLI ────────────────────────────────────────────────────────────────
+if ! _installed redis-cli; then
+  t=$(date +%s)
+  echo "Installing Redis tools..."
+  apt-get update -qq
+  apt-get install -y -qq --no-install-recommends redis-tools 2>/dev/null || true
+  _timer "Redis CLI" "$t"
+fi
+"""
+
+
+def setup_docker() -> str:
+    return """\
+# ── Docker CLI ───────────────────────────────────────────────────────────────
+# NOTE: Docker CLI is often pre-installed but the daemon may not be running.
+# This ensures the CLI is available for remote Docker or docker compose files.
+if ! _installed docker; then
+  t=$(date +%s)
+  echo "Installing Docker CLI..."
+  apt-get update -qq
+  apt-get install -y -qq --no-install-recommends docker.io 2>/dev/null || true
+  _timer "Docker CLI" "$t"
+fi
+"""
+
+
 def setup_node_managers(extras: set[str]) -> str:
     parts = [
         '# ── Node.js package managers ────────────────────────────────────────────────',
@@ -186,6 +318,8 @@ def setup_env_block(toolchains: set[str], extras: set[str]) -> str:
         ])
     if "go" in toolchains:
         lines.append('GOPATH=/root/go')
+    if "dotnet" in toolchains:
+        lines.append('DOTNET_ROOT=/usr/lib/dotnet')
     lines.append('ENVEOF')
 
     # PATH construction
@@ -194,8 +328,12 @@ def setup_env_block(toolchains: set[str], extras: set[str]) -> str:
         path_parts.append("/root/.cargo/bin")
     if "uv" in extras:
         path_parts.append("/root/.local/bin")
+    if "deno" in toolchains:
+        path_parts.append("/root/.deno/bin")
     if "go" in toolchains:
         path_parts.extend(["/usr/local/go/bin", "/root/go/bin"])
+    if "dotnet" in toolchains:
+        path_parts.append("/root/.dotnet")
 
     if path_parts:
         path_str = ":".join(path_parts)
@@ -206,6 +344,8 @@ def setup_env_block(toolchains: set[str], extras: set[str]) -> str:
     # Export for current script context
     if "go" in toolchains:
         lines.append('export GOPATH=/root/go')
+    if "dotnet" in toolchains:
+        lines.append('export DOTNET_ROOT=/usr/lib/dotnet')
     if path_parts:
         path_str = ":".join(path_parts)
         lines.append(f'export PATH="{path_str}:$PATH"')
@@ -234,6 +374,8 @@ def setup_summary(toolchains: set[str], extras: set[str]) -> str:
             checks.append(("yarn", "yarn --version"))
         if "bun" in extras:
             checks.append(("bun", "bun --version"))
+    if "deno" in toolchains:
+        checks.append(("Deno", "deno --version | head -1"))
     if "python" in toolchains:
         checks.append(("Python", "python3 --version"))
         if "uv" in extras:
@@ -246,9 +388,24 @@ def setup_summary(toolchains: set[str], extras: set[str]) -> str:
         checks.append(("Ruby", "ruby --version"))
     if "java" in toolchains:
         checks.append(("Java", "java -version 2>&1 | head -1"))
+    if "elixir" in toolchains:
+        checks.append(("Elixir", "elixir --version | tail -1"))
+    if "zig" in toolchains:
+        checks.append(("Zig", "zig version"))
+    if "dotnet" in toolchains:
+        checks.append(("dotnet", "dotnet --version"))
+    if "php" in toolchains:
+        checks.append(("PHP", "php --version | head -1"))
     if "gh" in extras:
         checks.append(("gh", "gh --version | head -1"))
-    checks.append(("sqlite3", "sqlite3 --version"))
+    if "sqlite" in extras:
+        checks.append(("sqlite3", "sqlite3 --version"))
+    if "postgres" in extras:
+        checks.append(("psql", "psql --version"))
+    if "redis" in extras:
+        checks.append(("redis-cli", "redis-cli --version"))
+    if "docker" in extras:
+        checks.append(("Docker", "docker --version"))
 
     for label, cmd in checks:
         lines.append(
@@ -270,10 +427,28 @@ def build_setup_sh(toolchains: set[str], extras: set[str]) -> str:
         parts.append(setup_chromium())
     if "gh" in extras:
         parts.append(setup_gh())
+    if "sqlite" in extras:
+        parts.append(setup_sqlite())
+    if "postgres" in extras:
+        parts.append(setup_postgres())
+    if "redis" in extras:
+        parts.append(setup_redis())
+    if "docker" in extras:
+        parts.append(setup_docker())
     if "go" in toolchains:
         parts.append(setup_go())
     if "rust" in toolchains:
         parts.append(setup_rust())
+    if "deno" in toolchains:
+        parts.append(setup_deno())
+    if "elixir" in toolchains:
+        parts.append(setup_elixir())
+    if "zig" in toolchains:
+        parts.append(setup_zig())
+    if "dotnet" in toolchains:
+        parts.append(setup_dotnet())
+    if "php" in toolchains:
+        parts.append(setup_php())
     if "uv" in extras:
         parts.append(setup_uv())
     if "node" in toolchains and (extras & {"pnpm", "yarn"}):
@@ -337,6 +512,8 @@ def session_env_detect(toolchains: set[str], extras: set[str]) -> str:
         lines.append('CARGO_BIN=""; [ -d /root/.cargo/bin ] && CARGO_BIN="/root/.cargo/bin"')
     if "uv" in extras:
         lines.append('UV_BIN=""; [ -d /root/.local/bin ] && UV_BIN="/root/.local/bin"')
+    if "deno" in toolchains:
+        lines.append('DENO_BIN=""; [ -d /root/.deno/bin ] && DENO_BIN="/root/.deno/bin"')
 
     return "\n".join(lines) + "\n"
 
@@ -362,17 +539,23 @@ def session_persist_env(toolchains: set[str], extras: set[str]) -> str:
         ])
     if "go" in toolchains:
         lines.append('_persist GOPATH                             "/root/go"')
+    if "dotnet" in toolchains:
+        lines.append('_persist DOTNET_ROOT                        "/usr/lib/dotnet"')
 
     # PATH
     path_parts = []
     if "go" in toolchains:
         path_parts.append("/usr/local/go/bin:/root/go/bin")
+    if "dotnet" in toolchains:
+        path_parts.append("/root/.dotnet")
     lines.append('')
     lines.append(f'NEW_PATH="{":".join(path_parts)}"' if path_parts else 'NEW_PATH=""')
     if "rust" in toolchains:
         lines.append('[ -n "${CARGO_BIN:-}" ] && NEW_PATH="${CARGO_BIN}:${NEW_PATH}"')
     if "uv" in extras:
         lines.append('[ -n "${UV_BIN:-}" ] && NEW_PATH="${UV_BIN}:${NEW_PATH}"')
+    if "deno" in toolchains:
+        lines.append('[ -n "${DENO_BIN:-}" ] && NEW_PATH="${DENO_BIN}:${NEW_PATH}"')
     lines.append('[ -n "$NEW_PATH" ] && _persist PATH "${NEW_PATH}:${PATH}"')
 
     # Fallback profile.d
@@ -384,14 +567,20 @@ def session_persist_env(toolchains: set[str], extras: set[str]) -> str:
     ])
     if "go" in toolchains:
         lines.append('export GOPATH=/root/go')
+    if "dotnet" in toolchains:
+        lines.append('export DOTNET_ROOT=/usr/lib/dotnet')
 
     fallback_path_parts = []
     if "rust" in toolchains:
         fallback_path_parts.append("/root/.cargo/bin")
     if "uv" in extras:
         fallback_path_parts.append("/root/.local/bin")
+    if "deno" in toolchains:
+        fallback_path_parts.append("/root/.deno/bin")
     if "go" in toolchains:
         fallback_path_parts.extend(["/usr/local/go/bin", "/root/go/bin"])
+    if "dotnet" in toolchains:
+        fallback_path_parts.append("/root/.dotnet")
     if fallback_path_parts:
         lines.append(f'export PATH="{":".join(fallback_path_parts)}:$PATH"')
 
@@ -432,6 +621,13 @@ def session_deps(toolchains: set[str]) -> str:
             '',
         ])
 
+    if "deno" in toolchains:
+        lines.extend([
+            '# Deno',
+            '[ -f deno.json ] || [ -f deno.jsonc ] && command -v deno &>/dev/null && deno install 2>/dev/null || true',
+            '',
+        ])
+
     if "python" in toolchains:
         lines.extend([
             '# Python',
@@ -452,6 +648,12 @@ def session_deps(toolchains: set[str]) -> str:
         lines.append('[ -f Cargo.toml ] && command -v cargo &>/dev/null && cargo fetch 2>/dev/null || true')
     if "ruby" in toolchains:
         lines.append('[ -f Gemfile ] && command -v bundle &>/dev/null && bundle install --quiet 2>/dev/null || true')
+    if "elixir" in toolchains:
+        lines.append('[ -f mix.exs ] && command -v mix &>/dev/null && mix deps.get 2>/dev/null || true')
+    if "dotnet" in toolchains:
+        lines.append('[ -f "*.csproj" ] || [ -f "*.fsproj" ] && command -v dotnet &>/dev/null && dotnet restore 2>/dev/null || true')
+    if "php" in toolchains:
+        lines.append('[ -f composer.json ] && command -v composer &>/dev/null && composer install --no-interaction --quiet 2>/dev/null || true')
 
     lines.extend(['', 'echo "=== Session ready ==="', 'exit 0'])
     return "\n".join(lines) + "\n"
@@ -523,6 +725,8 @@ def build_diagnose_sh(toolchains: set[str], extras: set[str]) -> str:
             lines.append('_check yarn')
         if "bun" in extras:
             lines.append('_check bun')
+    if "deno" in toolchains:
+        lines.append('_check Deno deno')
     if "python" in toolchains:
         lines.append('_check "Python" python3')
         lines.append('_check pip')
@@ -536,11 +740,38 @@ def build_diagnose_sh(toolchains: set[str], extras: set[str]) -> str:
         lines.append('_check Ruby ruby')
     if "java" in toolchains:
         lines.append('command -v java &>/dev/null && ok "Java: $(java -version 2>&1 | grep version | head -1)" || fail "Java: not installed"')
+    if "elixir" in toolchains:
+        lines.extend([
+            '_check Erlang erl',
+            'command -v elixir &>/dev/null && ok "Elixir: $(elixir --version 2>&1 | tail -1)" || fail "Elixir: not installed"',
+        ])
+    if "zig" in toolchains:
+        lines.append('_check Zig zig')
+    if "dotnet" in toolchains:
+        lines.append('_check ".NET" dotnet')
+    if "php" in toolchains:
+        lines.extend([
+            '_check PHP php',
+            '_check Composer composer',
+        ])
 
     lines.extend(['', 'echo ""', 'echo "CLI Tools"', '_check git'])
     if "gh" in extras:
         lines.append('_check gh')
-    lines.extend(['_check jq', '_check curl', '_check sqlite3'])
+    lines.extend(['_check jq', '_check curl'])
+    if "sqlite" in extras:
+        lines.append('_check sqlite3')
+    if "postgres" in extras:
+        lines.append('_check psql')
+    if "redis" in extras:
+        lines.append('_check redis-cli')
+    if "docker" in extras:
+        lines.extend([
+            '_check Docker docker',
+            'if command -v docker &>/dev/null; then',
+            '  docker ps &>/dev/null && ok "Docker daemon: running" || warn "Docker CLI installed but daemon not running"',
+            'fi',
+        ])
 
     if "browser" in extras:
         lines.extend([
@@ -574,5 +805,5 @@ def build_diagnose_sh(toolchains: set[str], extras: set[str]) -> str:
 
 # ── Public constants ─────────────────────────────────────────────────────────
 
-ALL_TOOLCHAINS = {"node", "python", "go", "rust", "ruby", "java"}
-ALL_EXTRAS = {"gh", "uv", "pnpm", "yarn", "bun", "browser"}
+ALL_TOOLCHAINS = {"node", "python", "go", "rust", "ruby", "java", "deno", "elixir", "zig", "dotnet", "php"}
+ALL_EXTRAS = {"gh", "uv", "pnpm", "yarn", "bun", "browser", "sqlite", "postgres", "redis", "docker"}

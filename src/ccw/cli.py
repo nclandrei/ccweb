@@ -184,13 +184,13 @@ def main() -> None:
         "--toolchains",
         default="all",
         metavar="TC",
-        help="Comma-separated: node,python,go,rust,ruby,java (default: all)",
+        help="Comma-separated: node,python,go,rust,ruby,java,deno,elixir,zig,dotnet,php (default: all)",
     )
     init_p.add_argument(
         "--extras",
         default="all",
         metavar="EX",
-        help="Comma-separated: gh,uv,pnpm,yarn,bun,browser (default: all)",
+        help="Comma-separated: gh,uv,pnpm,yarn,bun,browser,sqlite,postgres,redis,docker (default: all)",
     )
     init_p.add_argument(
         "--scripts-dir",
